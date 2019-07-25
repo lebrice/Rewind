@@ -1,0 +1,52 @@
+{
+    "name": "TimeControls",
+    "maps": [
+        {
+            "name": "Gameplay",
+            "id": "df7fd660-37fb-4de2-9190-3742547db6bd",
+            "actions": [
+                {
+                    "name": "Rewind",
+                    "type": "Button",
+                    "id": "6a4a1d57-eb0e-43cf-be03-85079968625e",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": ""
+                },
+                {
+                    "name": "Shoot",
+                    "type": "Button",
+                    "id": "90d387c3-834c-41da-8367-cbc5dec78f37",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": ""
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "866d1e1a-96a7-4b52-9a08-0ce3a45af933",
+                    "path": "<Keyboard>/f",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Shoot",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "9b9f36f7-d1b6-4746-8a1a-818fbafa0336",
+                    "path": "<Keyboard>/t",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Rewind",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": []
+}
