@@ -5,8 +5,7 @@ using UnityEngine.InputSystem;
 
 
 /// <summary>
-/// Monobehaviour used to make an object 'rewindable' in time.
-/// @TODO: Move the controller logic (input, keybindings, constants) somewhere else.
+/// Monobehaviour used to make an object and all its children 'rewindable' in time.
 /// </summary>
 public class RewindBehaviour : MonoBehaviour
 {
@@ -63,8 +62,7 @@ public class RewindBehaviour : MonoBehaviour
         }
         if (FixedUpdateCount++ % TrimBufferExcessInterval == 0)
         {
-            print("Trimming excess.");
-            // once in a while, trim the excess of the timebuffers.
+            // once in a while (every second or so), trim the excess of the timebuffers.
             foreach (var tracker in Trackers)
             {
                 tracker.timeBuffer.TrimExcess();

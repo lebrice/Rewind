@@ -2,11 +2,9 @@
 
 public class GameManager : MonoBehaviour
 {
-    public SharedControls Controls;
-    public RewindController TimeController { get; private set; }
     //Static instance of GameManager which allows it to be accessed by any other script.
     public static GameManager Instance { get; private set; }
-
+    public bool SpawnCubes = false;
     void Awake()
     {
         // setup and ensure singleton.
@@ -25,14 +23,17 @@ public class GameManager : MonoBehaviour
 
     void InitGame()
     {
-
+        if (SpawnCubes)
+        {
+            SpawnCubePile();
+        }
     }
 
     public Transform CubePrefab;
     public Vector3 CubeSpawnPosition = new Vector3(-10, 0, 10);
     public int CubeCount = 27;
 
-    private void SpawnCubes()
+    private void SpawnCubePile()
     {
         int cubesPerAxis = Mathf.CeilToInt(Mathf.Pow(CubeCount, 1f / 3));
         int numCubes = 0;
@@ -45,7 +46,7 @@ public class GameManager : MonoBehaviour
                 {
                     var relativePosition = new Vector3(i, j, k);
                     relativePosition.Scale(CubePrefab.lossyScale);
-                    Instantiate(CubePrefab, CubeSpawnPosition + relativePosition, Quaternion.identity);
+                    Transform cube = Instantiate(CubePrefab, CubeSpawnPosition + relativePosition, Quaternion.identity);
                     if (numCubes == CubeCount)
                         return;
                 }
