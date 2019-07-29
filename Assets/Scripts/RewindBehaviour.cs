@@ -1,181 +1,199 @@
 ﻿using System.Collections.Generic;
+using Unity.Entities;
 using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.InputSystem;
-
+using utils;
 
 /// <summary>
 /// Monobehaviour used to make an object and all its children 'rewindable' in time.
 /// </summary>
 public class RewindBehaviour : MonoBehaviour
 {
+    public RewindController controller;
+
     public BoolVariable Rewinding;
-    public RewindSettings Settings;
-    private ObjectTracker[] Trackers;
+    private List<Tracker> Trackers;
     public const int TrimBufferExcessInterval = 50;
 
-    private long FixedUpdateCount;
+    private void Reset()
+    {
+        Trackers?.Clear();
+        Trackers = null;
+    }
+
+    private void OnEnable()
+    {
+        Trackers = AddTrackers();
+        foreach (Tracker tracker in Trackers)
+        {
+            controller.TrackedObjects.Add(tracker);
+        }
+    }
+
+    private void OnDisable()
+    {
+        foreach (Tracker tracker in Trackers)
+        {
+            controller.TrackedObjects.Remove(tracker);
+        }
+    }
+
+    private List<Tracker> AddTrackers()
+    {
+        List<Tracker> Trackers = new List<Tracker>();
+        // add a tracker for each child.
+        foreach (GameObject childGameObject in ChildGameObjects(gameObject))
+        {
+            Tracker tracker = GetOrAddTracker(childGameObject);
+            Trackers.Add(tracker);
+        }
+        // add a tracker for this object. (might not be required?)
+        //TrackerBehaviour parentTracker = GetOrAddTracker(gameObject);
+        //Trackers.Add(parentTracker);
+        return Trackers;
+    }
+
+    public static IEnumerable<GameObject> ChildGameObjects(GameObject obj)
+    {
+        foreach (Transform child in obj.GetComponentsInChildren<Transform>())
+        {
+            yield return child.gameObject;
+        }
+    }
+
+    public static Tracker GetOrAddTracker(GameObject obj)
+    {
+        Tracker tracker;
+        if ((tracker = obj.GetComponent<Tracker>()) == null)
+        {
+            tracker = obj.AddComponent<Tracker>();
+        }
+        return tracker;
+    }
+}
+
+public struct TimePositionInfo
+{
+    public Vector3 position;
+    public Quaternion rotation;
+    public Vector3 velocity;
+    public long numStillFrames;
+}
+
+
+public class RewindSettings
+{
+        public bool IgnoreSmallMovements = true;
+        public float PositionChangeThreshold = 0.05f;
+        public float RotationChangeThreshold = 1f;
+        public float VelocityChangeThreshold = 0.5f;
+}
+
+public class Tracker : MonoBehaviour
+{
+    public static RewindSettings Settings = new RewindSettings();
+    public Stack<TimePositionInfo> timeBuffer;
+    public Rigidbody rigidBody;
+
+    public int BufferLength;
 
     private void Awake()
     {
-        AddTrackers();
+        timeBuffer = new Stack<TimePositionInfo>();
+        rigidBody = GetComponent<Rigidbody>(); // the object might not have one.
     }
 
-
-    /// <summary>
-    /// Adds trackers to keep track of the state all non-static child objects over time, as well as this object itself.
-    /// </summary>
-    private void AddTrackers()
+    private void Reset()
     {
-        foreach (Transform child in GetComponentInChildren<Transform>())
+        timeBuffer?.Clear();
+        timeBuffer?.TrimExcess();
+    }
+
+    private void Update()
+    {
+        BufferLength = timeBuffer.Count;
+    }
+
+    private void Start()
+    {
+        var initialPosition = new TimePositionInfo
         {
-            GameObject childGameObject = child.gameObject;
-            
-            if (childGameObject.GetComponent<ObjectTracker>() == null)
+            position = transform.position,
+            rotation = transform.rotation,
+            numStillFrames = long.MaxValue / 2 // saying the object has been there 'forever'
+        };
+        if (rigidBody)
+        {
+            initialPosition.velocity = rigidBody.velocity;
+        }
+        timeBuffer.Push(initialPosition);
+    }
+
+    public void RewindTime()
+    {
+        TimePositionInfo pos = timeBuffer.Pop();
+        transform.position = pos.position;
+        transform.rotation = pos.rotation;
+        if (rigidBody != null)
+        {
+            rigidBody.velocity = pos.velocity;
+        }
+        // we don't go back in time before the initial position
+        if (timeBuffer.Count != 1)
+        {
+            pos.numStillFrames -= 1;
+            if (pos.numStillFrames >= 0)
             {
-                var rewindElement = childGameObject.AddComponent<ObjectTracker>();
-                rewindElement.Settings = Settings;
+                timeBuffer.Push(pos);
             }
         }
-        var tracker = gameObject.AddComponent<ObjectTracker>();
-        tracker.Settings = Settings;
-
-        Trackers = GetComponentsInChildren<ObjectTracker>();
     }
 
-    private void FixedUpdate()
+    /// <summary>
+    /// Dumb mechanism for testing if the object moved since the last frame, since `transform.hasChanged` seems really buggy.
+    /// </summary>
+    /// <returns></returns>
+    private bool ObjectMovedSignificantly()
     {
-        if (Rewinding)
+        TimePositionInfo LastPosition = timeBuffer.Peek();
+        return Vector3.Distance(transform.position, LastPosition.position) > Settings.PositionChangeThreshold
+            || Quaternion.Angle(transform.rotation, LastPosition.rotation) > Settings.RotationChangeThreshold
+            || (rigidBody && Vector3.Distance(rigidBody.velocity, LastPosition.velocity) > Settings.VelocityChangeThreshold);
+    }
+
+    private bool ObjectMoved()
+    {
+        TimePositionInfo LastPosition = timeBuffer.Peek();
+        return transform.position != LastPosition.position
+            || transform.rotation != LastPosition.rotation
+            || (rigidBody ? rigidBody.velocity != LastPosition.velocity : false);
+    }
+
+    public void RecordPositionInTime()
+    {
+        TimePositionInfo pos;
+        if (Settings.IgnoreSmallMovements ? ObjectMovedSignificantly() : ObjectMoved())
         {
-            foreach (var tracker in Trackers)
-            {
-                tracker.RewindTime();
-            }
+            pos.position = transform.position;
+            pos.rotation = transform.rotation;
+            pos.numStillFrames = 0;
+            pos.velocity = rigidBody?.velocity ?? Vector3.zero;
+            //var pos = new TimePositionInfo
+            //{
+            //    position = transform.position,
+            //    rotation = transform.rotation,
+            //    numStillFrames = 0,
+            //    velocity = rigidBody ? rigidBody.velocity : Vector3.zero;
+            //};
+            timeBuffer.Push(pos);
         }
         else
         {
-            // we are recording.
-            foreach (var tracker in Trackers)
-            {
-                tracker.RecordPositionInTime();
-            }
-        }
-        if (FixedUpdateCount++ % TrimBufferExcessInterval == 0)
-        {
-            // once in a while (every second or so), trim the excess of the timebuffers.
-            foreach (var tracker in Trackers)
-            {
-                tracker.timeBuffer.TrimExcess();
-            }
-        }
-    }
-
-    public class TimePositionInfo
-    {
-        public Vector3 position;
-        public Quaternion rotation;
-        public Vector3 velocity;
-        public long numStillFrames;
-    }
-
-    public class ObjectTracker : MonoBehaviour
-    {
-        public RewindSettings Settings;
-        public Stack<TimePositionInfo> timeBuffer;
-        private Rigidbody rigidBody;
-
-        private void Awake()
-        {
-            timeBuffer = new Stack<TimePositionInfo>();
-            rigidBody = GetComponent<Rigidbody>(); // the object might not have one.
-        }
-
-        private void Reset()
-        {
-            timeBuffer?.Clear();
-            timeBuffer?.TrimExcess();
-        }
-
-        private void Start()
-        {
-            var initialPosition = new TimePositionInfo
-            {
-                position = transform.position,
-                rotation = transform.rotation,
-                numStillFrames = long.MaxValue / 2 // saying the object has been there 'forever'
-            };
-            if (rigidBody)
-            {
-                initialPosition.velocity = rigidBody.velocity;
-            }
-            timeBuffer.Push(initialPosition);
-        }
-
-        public void RewindTime()
-        {
-            TimePositionInfo lastPosition = timeBuffer.Peek();
-            transform.position = lastPosition.position;
-            transform.rotation = lastPosition.rotation;
-            if (rigidBody != null)
-            {
-                rigidBody.velocity = lastPosition.velocity;
-            }
-            // we don't go back in time before the initial position
-            if (timeBuffer.Count == 1)
-            {
-                return;
-            }
-            lastPosition.numStillFrames -= 1;
-            if (lastPosition.numStillFrames < 0)
-            {
-                timeBuffer.Pop();
-            }
-        }
-
-        /// <summary>
-        /// Dumb mechanism for testing if the object moved since the last frame, since `transform.hasChanged` seems really buggy.
-        /// </summary>
-        /// <returns></returns>
-        private bool ObjectMovedSignificantly()
-        {
-            TimePositionInfo LastPosition = timeBuffer.Peek();
-            return Vector3.Distance(transform.position, LastPosition.position) > Settings.PositionChangeThreshold
-                || Quaternion.Angle(transform.rotation, LastPosition.rotation) > Settings.RotationChangeThreshold
-                || (rigidBody ? Vector3.Distance(rigidBody.velocity, LastPosition.velocity) > Settings.VelocityChangeThreshold : false);
-        }
-
-        private bool ObjectMoved()
-        {
-            TimePositionInfo LastPosition = timeBuffer.Peek();
-            return transform.position != LastPosition.position
-                || transform.rotation != LastPosition.rotation
-                || rigidBody?.velocity != LastPosition.velocity;
-        }
-
-        public void RecordPositionInTime()
-        {
-            if (Settings.IgnoreSmallMovements ? ObjectMovedSignificantly() : ObjectMoved())
-            {
-                var pos = new TimePositionInfo
-                {
-                    position = transform.position,
-                    rotation = transform.rotation,
-                    numStillFrames = 0,
-                };
-                if (rigidBody)
-                {
-                    pos.velocity = rigidBody.velocity;
-                }
-                timeBuffer.Push(pos);
-            }
-            else
-            {
-                //print("before" + timeBuffer.Peek().numStillFrames);
-                TimePositionInfo lastPosition = timeBuffer.Peek();
-                lastPosition.numStillFrames += 1;
-                //print("after" + timeBuffer.Peek().numStillFrames);
-                //print("Object has been still for " + lastPosition.numStillFrames + " Now.");
-            }
+            // Object didn't move. Just increment a counter.
+            pos = timeBuffer.Pop();
+            pos.numStillFrames += 1;
+            timeBuffer.Push(pos);
         }
     }
 }

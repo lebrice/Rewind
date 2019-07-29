@@ -138,8 +138,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 745e3f91e344e184c8806857d61e1c90, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Rewinding: {fileID: 11400000, guid: c440254f6c19ecf48b2c36093bce6915, type: 2}
-  Settings: {fileID: 11400000, guid: 3362c4eff08c1e54b9c995a724347366, type: 2}
+  controller: {fileID: 1190051167}
+  Rewinding: {fileID: 0}
 --- !u!1001 &562455755
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -367,7 +367,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalPosition: {x: 0, y: 1, z: -30}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
@@ -549,7 +549,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b00cd9bcf913d30498cb30922c46749b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Controls: {fileID: 11400000, guid: 27d8edb9dd41da241a78b08788c3cb64, type: 2}
+  SpawnCubes: 0
   CubePrefab: {fileID: 2412263386472431168, guid: b5c7c678fac595a43a41abaf190d5988,
     type: 3}
   CubeSpawnPosition: {x: -10, y: 0, z: 10}
@@ -581,5 +581,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Rewinding: {fileID: 11400000, guid: c440254f6c19ecf48b2c36093bce6915, type: 2}
-  Settings: {fileID: 11400000, guid: 3362c4eff08c1e54b9c995a724347366, type: 2}
   Controls: {fileID: 11400000, guid: 27d8edb9dd41da241a78b08788c3cb64, type: 2}
+  OnRewindStart: {fileID: 11400000, guid: 089a1bda7d4b32a49b6a5648b16df25c, type: 2}
+  OnRewindEnd: {fileID: 11400000, guid: 5469a68869fe1cd45b111699057c3252, type: 2}
+  TrackedObjects: {fileID: 11400000, guid: 94e3dc005a5e2564b9f9cb8a119c4e9c, type: 2}

@@ -1,7 +1,6 @@
 ﻿using UnityEngine;
-using utils;
 
-[CreateAssetMenu]
+[CreateAssetMenu(menuName = "customObject/Controls")]
 public class SharedControls : ScriptableObject
 {
     private TimeControls value;
