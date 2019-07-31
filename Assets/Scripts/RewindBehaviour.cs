@@ -16,10 +16,10 @@ public class RewindBehaviour : MonoBehaviour
 
     private void Awake()
     {
-        // add a tracker for each child.
-        foreach (GameObject childGameObject in ChildGameObjects(gameObject))
+        // add a tracker for every child.
+        foreach (GameObject obj in ChildGameObjects(gameObject))
         {
-            Tracker tracker = GetOrAddTracker(childGameObject);
+            Tracker tracker = obj.GetComponent<Tracker>() ?? obj.AddComponent<Tracker>();
             Trackers.Add(tracker);
         }
     }
@@ -29,6 +29,7 @@ public class RewindBehaviour : MonoBehaviour
         foreach (Tracker tracker in Trackers)
         {
             controller.RegisterRewindableObject(tracker);
+            tracker.enabled = true;
         }
     }
 
@@ -45,7 +46,7 @@ public class RewindBehaviour : MonoBehaviour
     {
         foreach (Tracker tracker in Trackers)
         {
-            controller.UnRegisterRewindableObject(tracker);
+            tracker.enabled = false;
         }
     }
 
@@ -53,6 +54,7 @@ public class RewindBehaviour : MonoBehaviour
     {
         foreach (var tracker in Trackers)
         {
+            controller.UnRegisterRewindableObject(tracker);
             Destroy(tracker);
         }
     }
@@ -63,16 +65,6 @@ public class RewindBehaviour : MonoBehaviour
         {
             yield return child.gameObject;
         }
-    }
-
-    public static Tracker GetOrAddTracker(GameObject obj)
-    {
-        Tracker tracker;
-        if ((tracker = obj.GetComponent<Tracker>()) == null)
-        {
-            tracker = obj.AddComponent<Tracker>();
-        }
-        return tracker;
     }
 }
 
@@ -163,13 +155,6 @@ public class Tracker : MonoBehaviour
             pos.rotation = transform.rotation;
             pos.framesSpendInThisState = 1;
             pos.velocity = rigidBody ? rigidBody.velocity : Vector3.zero;
-            //var pos = new TimePositionInfo
-            //{
-            //    position = transform.position,
-            //    rotation = transform.rotation,
-            //    numStillFrames = 0,
-            //    velocity = rigidBody ? rigidBody.velocity : Vector3.zero;
-            //};
             timeBuffer.Push(pos);
         }
         else
