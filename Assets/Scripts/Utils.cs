@@ -1,5 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using Unity.Collections;
+using Unity.Jobs;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Events;
@@ -42,8 +45,71 @@ namespace utils
             if (Items.Contains(t)) Items.Remove(t);
         }
     }
+    namespace NativeListExtensionMethods
+    {
+        public static class NativeListExtensions
+        {
+            public static void Push<T>(this NativeList<T> list, T value) where T: struct
+            {
 
-    
+            }
+            
+            public static T Pop<T>(this NativeList<T> list) where T: struct
+            {
+                T item = list[list.Length - 1];
+                list.RemoveAtSwapBack(list.Length - 1);
+                return item;
+            }
+
+            public static T Peek<T>(this NativeList<T> list) where T: struct
+            {
+                return list[list.Length - 1];
+            }
+        }
+    }
+    //public struct NativeStack<T> : NativeList<T>
+    //{
+    //    private NativeList<T> List;
+
+    //    public NativeStack(int capacity, Allocator alloc)
+    //    {
+    //        List = new NativeList<T>(capacity, alloc);
+    //    }
+
+    //    public NativeStack(Allocator alloc)
+    //    {
+    //        List = new NativeList<T>(alloc);
+    //    }
+
+    //    public void Push(T obj)
+    //    {
+    //        List.Add(obj);
+    //    }
+
+    //    public T Pop()
+    //    {
+    //        T item = List[List.Length - 1];
+    //        List.RemoveAtSwapBack(List.Length - 1);
+    //        return item;
+    //    }
+
+    //    public T Peek()
+    //    {
+    //        return List[List.Length - 1];
+    //    }
+
+    //    public int Count { get => List.Length; }
+
+    //    public void Dispose()
+    //    {
+    //        List.Dispose();
+    //    }
+
+    //    public JobHandle Dispose(JobHandle jobHandle)
+    //    {
+    //        return List.Dispose(jobHandle);
+    //    }
+    //}
 
     //public static class ScriptableObjectUtility
     //{

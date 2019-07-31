@@ -11,47 +11,50 @@ using utils;
 public class RewindBehaviour : MonoBehaviour
 {
     public RewindController controller;
+    private List<Tracker> Trackers = new List<Tracker>();
 
-    public BoolVariable Rewinding;
-    private List<Tracker> Trackers;
-    public const int TrimBufferExcessInterval = 50;
 
-    private void Reset()
+    private void Awake()
     {
-        Trackers?.Clear();
-        Trackers = null;
-    }
-
-    private void OnEnable()
-    {
-        Trackers = AddTrackers();
-        foreach (Tracker tracker in Trackers)
-        {
-            controller.TrackedObjects.Add(tracker);
-        }
-    }
-
-    private void OnDisable()
-    {
-        foreach (Tracker tracker in Trackers)
-        {
-            controller.TrackedObjects.Remove(tracker);
-        }
-    }
-
-    private List<Tracker> AddTrackers()
-    {
-        List<Tracker> Trackers = new List<Tracker>();
         // add a tracker for each child.
         foreach (GameObject childGameObject in ChildGameObjects(gameObject))
         {
             Tracker tracker = GetOrAddTracker(childGameObject);
             Trackers.Add(tracker);
         }
-        // add a tracker for this object. (might not be required?)
-        //TrackerBehaviour parentTracker = GetOrAddTracker(gameObject);
-        //Trackers.Add(parentTracker);
-        return Trackers;
+    }
+
+    private void OnEnable()
+    {
+        foreach (Tracker tracker in Trackers)
+        {
+            controller.RegisterRewindableObject(tracker);
+        }
+    }
+
+    private void Reset()
+    {
+        foreach (Tracker tracker in Trackers)
+        {
+            tracker.Reset();
+        }
+    }
+
+
+    private void OnDisable()
+    {
+        foreach (Tracker tracker in Trackers)
+        {
+            controller.UnRegisterRewindableObject(tracker);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var tracker in Trackers)
+        {
+            Destroy(tracker);
+        }
     }
 
     public static IEnumerable<GameObject> ChildGameObjects(GameObject obj)
@@ -73,41 +76,56 @@ public class RewindBehaviour : MonoBehaviour
     }
 }
 
-public struct TimePositionInfo
+public class Tracker : MonoBehaviour
 {
-    public Vector3 position;
-    public Quaternion rotation;
-    public Vector3 velocity;
-    public long numStillFrames;
-}
-
-
-public class RewindSettings
-{
+    public class RewindSettings
+    {
         public bool IgnoreSmallMovements = true;
         public float PositionChangeThreshold = 0.05f;
         public float RotationChangeThreshold = 1f;
         public float VelocityChangeThreshold = 0.5f;
-}
+    }
 
-public class Tracker : MonoBehaviour
-{
+    public struct TimePositionInfo
+    {
+        public Vector3 position;
+        public Quaternion rotation;
+        public Vector3 velocity;
+        public long framesSpendInThisState;
+    }
+
+
     public static RewindSettings Settings = new RewindSettings();
-    public Stack<TimePositionInfo> timeBuffer;
-    public Rigidbody rigidBody;
 
+    public Stack<TimePositionInfo> timeBuffer = new Stack<TimePositionInfo>();
+    public bool IsAtInitialPosition => timeBuffer.Count == 0;
     public int BufferLength;
+
+    private Rigidbody rigidBody;
+    private TimePositionInfo InitialPosition;
 
     private void Awake()
     {
-        timeBuffer = new Stack<TimePositionInfo>();
         rigidBody = GetComponent<Rigidbody>(); // the object might not have one.
     }
 
-    private void Reset()
+    internal void Reset()
     {
-        timeBuffer?.Clear();
-        timeBuffer?.TrimExcess();
+        timeBuffer.Clear();
+        timeBuffer.TrimExcess();
+    }
+
+    private void Start()
+    {
+        Reset();
+        InitialPosition = new TimePositionInfo
+        {
+            position = transform.position,
+            rotation = transform.rotation,
+            velocity = rigidBody != null ? rigidBody.velocity : Vector3.zero,
+            framesSpendInThisState = long.MaxValue / 2, // the object has been there 'forever'
+        };
+        timeBuffer.Push(InitialPosition);
     }
 
     private void Update()
@@ -115,70 +133,36 @@ public class Tracker : MonoBehaviour
         BufferLength = timeBuffer.Count;
     }
 
-    private void Start()
-    {
-        var initialPosition = new TimePositionInfo
-        {
-            position = transform.position,
-            rotation = transform.rotation,
-            numStillFrames = long.MaxValue / 2 // saying the object has been there 'forever'
-        };
-        if (rigidBody)
-        {
-            initialPosition.velocity = rigidBody.velocity;
-        }
-        timeBuffer.Push(initialPosition);
-    }
-
     public void RewindTime()
     {
-        TimePositionInfo pos = timeBuffer.Pop();
-        transform.position = pos.position;
-        transform.rotation = pos.rotation;
-        if (rigidBody != null)
+        // we can't go back in time further than the initial position
+        if (!IsAtInitialPosition)
         {
-            rigidBody.velocity = pos.velocity;
-        }
-        // we don't go back in time before the initial position
-        if (timeBuffer.Count != 1)
-        {
-            pos.numStillFrames -= 1;
-            if (pos.numStillFrames >= 0)
+            TimePositionInfo pos = timeBuffer.Pop();
+            transform.position = pos.position;
+            transform.rotation = pos.rotation;
+            if (rigidBody != null)
             {
+                rigidBody.velocity = pos.velocity;
+            }
+            // push it back if it is still viable
+            if (pos.framesSpendInThisState > 1)
+            {
+                pos.framesSpendInThisState -= 1;
                 timeBuffer.Push(pos);
             }
         }
     }
 
-    /// <summary>
-    /// Dumb mechanism for testing if the object moved since the last frame, since `transform.hasChanged` seems really buggy.
-    /// </summary>
-    /// <returns></returns>
-    private bool ObjectMovedSignificantly()
-    {
-        TimePositionInfo LastPosition = timeBuffer.Peek();
-        return Vector3.Distance(transform.position, LastPosition.position) > Settings.PositionChangeThreshold
-            || Quaternion.Angle(transform.rotation, LastPosition.rotation) > Settings.RotationChangeThreshold
-            || (rigidBody && Vector3.Distance(rigidBody.velocity, LastPosition.velocity) > Settings.VelocityChangeThreshold);
-    }
-
-    private bool ObjectMoved()
-    {
-        TimePositionInfo LastPosition = timeBuffer.Peek();
-        return transform.position != LastPosition.position
-            || transform.rotation != LastPosition.rotation
-            || (rigidBody ? rigidBody.velocity != LastPosition.velocity : false);
-    }
-
     public void RecordPositionInTime()
     {
         TimePositionInfo pos;
-        if (Settings.IgnoreSmallMovements ? ObjectMovedSignificantly() : ObjectMoved())
+        if (Settings.IgnoreSmallMovements ? MovedSignificantly() : Moved())
         {
             pos.position = transform.position;
             pos.rotation = transform.rotation;
-            pos.numStillFrames = 0;
-            pos.velocity = rigidBody?.velocity ?? Vector3.zero;
+            pos.framesSpendInThisState = 1;
+            pos.velocity = rigidBody ? rigidBody.velocity : Vector3.zero;
             //var pos = new TimePositionInfo
             //{
             //    position = transform.position,
@@ -190,10 +174,41 @@ public class Tracker : MonoBehaviour
         }
         else
         {
-            // Object didn't move. Just increment a counter.
-            pos = timeBuffer.Pop();
-            pos.numStillFrames += 1;
-            timeBuffer.Push(pos);
+            // Object didn't move.
+            if (IsAtInitialPosition)
+            {
+                return; // we don't change the initial position.
+            }
+            else
+            {
+                // Just increment a counter.
+                pos = timeBuffer.Pop();
+                pos.framesSpendInThisState += 1;
+                timeBuffer.Push(pos);
+            }
         }
     }
+
+    /// <summary>
+    /// Dumb (inneficient) mechanism for testing if the object moved since the last frame, since `transform.hasChanged` seems really buggy.
+    /// </summary>
+    /// <returns></returns>
+    private bool MovedSignificantly()
+    {
+        TimePositionInfo LastPosition = timeBuffer.Peek();
+        return Vector3.Distance(transform.position, LastPosition.position) > Settings.PositionChangeThreshold
+            || Quaternion.Angle(transform.rotation, LastPosition.rotation) > Settings.RotationChangeThreshold
+            || (rigidBody && Vector3.Distance(rigidBody.velocity, LastPosition.velocity) > Settings.VelocityChangeThreshold);
+    }
+
+    private bool Moved()
+    {
+        TimePositionInfo LastPosition = timeBuffer.Peek();
+        return transform.position != LastPosition.position
+            || transform.rotation != LastPosition.rotation
+            || (rigidBody && (rigidBody.velocity != LastPosition.velocity));
+    }
+
+
 }
+

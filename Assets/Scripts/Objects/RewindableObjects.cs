@@ -1,10 +1,6 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 using utils;
-
-[CreateAssetMenu]
+[CreateAssetMenu(menuName = "Rewindable Objects")]
 public class RewindableObjects : RuntimeSet<Tracker>
 {
-
 }
